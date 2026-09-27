@@ -91,8 +91,8 @@ function card(){const s=L[cur];if(!s){$("card").innerHTML='<p class="sub">ไม
  $("card").innerHTML=`<div class="who"><b>${s.name}</b><span class="id">รหัส ${s.id} · เลขที่ ${s.no}${s.by?' · กรอกโดย '+s.by:''}</span></div>
  <div class="grades"><div class="g"><span>GPA 5 ภาค</span><b>${s.gpa.toFixed(2)}</b></div>${SUB.map((x,j)=>`<div class="g" data-s="${x}"><span>${x}</span><b>${s.gr[j].toFixed(2)}</b></div>`).join("")}</div>
  <div class="qual ${q?'ok':'bad'}">${q?'✓ มีคุณสมบัติ (GPA ≥ 2.00 และไม่มีผลการเรียนค้าง)':'✗ ไม่มีคุณสมบัติ: '+(s.gpa<2?'GPA ต่ำกว่า 2.00':s.owe)}</div>
- <label class="chk"><input type="checkbox" id="asg" ${s.assign?'checked':''} ${q?'':'disabled'}> ไม่มีคุณสมบัติตามเกณฑ์การเลือกแผน ยินยอมให้โรงเรียนจัดแผนให้</label>
- <div class="choices">${[0,1,2,3].map(k=>`<div class="ch"><label for="c${k}">อันดับ ${k+1}</label><select id="c${k}" ${q&&!s.assign?'':'disabled'}><option value="">— เลือกสาย —</option>${T.map(t=>`<option ${s.ch[k]==t.name?'selected':''}>${t.name}</option>`).join("")}</select><small class="cr" id="h${k}"></small></div>`).join("")}</div>
+ ${q?`<p class="sub">สายที่ผ่านเกณฑ์: <b>${T.filter(t=>crit(t.name,s.gr).st!="bad").map(t=>t.name).join(", ")||"ไม่มี"}</b> · เลือกได้ 1–4 อันดับตามใบสมัคร</p>`:""}<label class="chk"><input type="checkbox" id="asg" ${s.assign?'checked':''} ${q?'':'disabled'}> ไม่มีคุณสมบัติตามเกณฑ์การเลือกแผน ยินยอมให้โรงเรียนจัดแผนให้</label>
+ <div class="choices">${[0,1,2,3].map(k=>`<div class="ch"><label for="c${k}">อันดับ ${k+1}</label><select id="c${k}" ${q&&!s.assign?'':'disabled'}><option value="">— เลือกสาย —</option>${T.map(t=>{const bad=crit(t.name,s.gr).st=="bad";return `<option value="${t.name}" ${s.ch[k]==t.name?'selected':''} ${bad&&s.ch[k]!=t.name?'disabled':''}>${t.name}${bad?' (ไม่ผ่านเกณฑ์)':''}</option>`}).join("")}</select><small class="cr" id="h${k}"></small></div>`).join("")}</div>
  <div class="err" id="warn"></div><div class="err" id="err"></div>
  <div class="foot"><label class="chk"><input type="checkbox" id="okc" ${s.ok?'checked':''} ${q?'':'disabled'}> ตรงกับใบสมัครที่นักเรียนเขียนแล้ว</label><button class="pri" id="save" ${q?'':'disabled'}>บันทึก</button></div>`;
  [0,1,2,3].forEach(k=>{$("c"+k).onchange=e=>{s.ch[k]=e.target.value;foc=k;paint(s)};$("c"+k).onfocus=()=>{foc=k;hl(s)}});paint(s);
@@ -101,12 +101,15 @@ function card(){const s=L[cur];if(!s){$("card").innerHTML='<p class="sub">ไม
   const prev={saved:s.saved,by:s.by};s.saved=true;s.by=ME.name;s.pending=true;summary();if(cur<L.length-1)cur++;foc=null;list();card();if(innerWidth<=760)$("card").scrollIntoView({behavior:"smooth",block:"start"});
   api("save",{token:ME.token,app:{id:s.id,ch:s.ch,assign:s.assign,ok:s.ok}}).then(()=>{s.pending=false;list()}).catch(err=>{s.pending=false;s.saved=prev.saved;s.by=prev.by;summary();cur=L.indexOf(s);list();card();$("err").textContent="บันทึกไม่สำเร็จ: "+err.message})}}
 function hl(s){const hi=new Set(foc!=null&&s.ch[foc]&&tr(s.ch[foc])?crit(s.ch[foc],s.gr).hi:[]);document.querySelectorAll(".g[data-s]").forEach(g=>g.classList.toggle("hi",hi.has(g.dataset.s)))}
-function paint(s){[0,1,2,3].forEach(k=>{const h=$("h"+k);if(!h)return;const n=s.ch[k];if(n&&tr(n)&&!s.assign){const c=crit(n,s.gr);h.className="cr "+c.st;h.textContent=(c.st=="ok"?"✓ ":"✗ ")+c.tx}else{h.className="cr";h.textContent=""}});
+function opts(s,k){const others=s.ch.filter((x,j)=>j!=k&&x);const per={};others.forEach(x=>{const t=tr(x);if(t)per[t.plan]=(per[t.plan]||0)+1});
+ const ok=t=>{if(crit(t.name,s.gr).st=="bad")return false;if(others.includes(t.name))return false;if((per[t.plan]||0)>=2)return false;if(!per[t.plan]&&Object.keys(per).length>=3)return false;return true};
+ return '<option value="">— เลือกสาย —</option>'+T.filter(t=>ok(t)||s.ch[k]==t.name).map(t=>`<option value="${t.name}" ${s.ch[k]==t.name?'selected':''}>${t.name}</option>`).join("")}
+function paint(s){[0,1,2,3].forEach(k=>{const e=$("c"+k);if(e&&document.activeElement!==e){e.innerHTML=opts(s,k)}});[0,1,2,3].forEach(k=>{const h=$("h"+k);if(!h)return;const n=s.ch[k];if(n&&tr(n)&&!s.assign){const c=crit(n,s.gr);h.className="cr "+c.st;h.textContent=(c.st=="ok"?"✓ ":"✗ ")+c.tx}else{h.className="cr";h.textContent=""}});
  hl(s);const c=s.ch.filter(Boolean);let w="";if(!s.assign&&c.length){const per={};c.forEach(x=>{const t=tr(x);if(t)per[t.plan]=(per[t.plan]||0)+1});
  if(new Set(c).size<c.length)w="⚠ เลือกสายซ้ำกัน";else if(Object.keys(per).length>3)w="⚠ เลือกเกิน 3 แผนการเรียน";else{const o=Object.entries(per).find(e=>e[1]>2);if(o)w="⚠ แผน"+o[0]+" เลือกได้ไม่เกิน 2 สาย (ตอนนี้เลือก "+o[1]+" สาย)"}}
  $("warn").textContent=w}
 function check(s){if(!s.ok)return"ติ๊กยืนยันว่าตรงกับใบสมัครก่อนบันทึก";if(s.assign)return"";const c=s.ch.filter(Boolean);
- if(c.length<4||new Set(c).size<4)return"เลือกให้ครบ 4 อันดับและไม่ซ้ำกัน";const per={};c.forEach(x=>per[tr(x).plan]=(per[tr(x).plan]||0)+1);
+ if(!c.length)return"เลือกอย่างน้อย 1 อันดับ";if(s.ch.slice(0,c.length).some(x=>!x))return"เลือกเรียงจากอันดับ 1 ห้ามเว้นอันดับ";if(new Set(c).size<c.length)return"เลือกสายซ้ำกัน";const per={};c.forEach(x=>per[tr(x).plan]=(per[tr(x).plan]||0)+1);
  if(Object.keys(per).length>3)return"เลือกได้ไม่เกิน 3 แผนการเรียน";if(Object.values(per).some(n=>n>2))return"แต่ละแผนการเรียนเลือกได้ไม่เกิน 2 สาย";
  if(c.some(x=>crit(x,s.gr).st=="bad"))return"มีอันดับที่ไม่ผ่านเกณฑ์รายวิชา";return""}
 function fill(i){T=i.tracks;ALL=i.students;const rooms=[...new Set(ALL.map(s=>s.room))].sort((a,b)=>a-b);$("room").innerHTML=rooms.map(r=>`<option value="${r}">ม.3/${r}</option>`).join("")}
